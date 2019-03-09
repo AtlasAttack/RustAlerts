@@ -64,6 +64,8 @@ If you plan on using this for your server, adding |RustAlerts| somewhere in your
 
 -**/rustalerts sync** -- Updates the server's database cache. This should be used if you make changes to permissions regarding Rust Alerts, but also happens automatically every so often. (Admin only command).
 
+### Integrations
+[Clans by k1lly0u] (Optional) -- If this plugin is installed, clanmates that share a base will all receive alerts if that base is raided, begins decaying, or has its tool cupboard destroyed.
 
 # Support
 If you need help with Rust Alerts or encounter an issue, feel free to shoot an email to: **calebchalmers@gmail.com**.
