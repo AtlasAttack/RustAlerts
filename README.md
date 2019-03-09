@@ -5,13 +5,13 @@ Once Rust Alerts is installed on a server, users will be able to link their acco
 
 
 - Any building block (Above twig) that they own is destroyed.
-- Any wall, gate, or fence that they own is destroyed
-- A tool cupboard they own is destroyed
+- Any wall, gate, or fence that they own is destroyed.
+- A tool cupboard they own is destroyed.
 - A base that they own is decaying.
-- The player dies while sleeping
-- An auto turret that the player owns is destroyed
-- An auto turret that the player owns runs out of ammo
-- A trap set by the player kills another player
+- The player dies while sleeping.
+- An auto turret that the player owns is destroyed.
+- An auto turret that the player owns runs out of ammo.
+- A trap set by the player kills another player.
 
 Users can configure and customize which alerts they receive from within the app. 
 
@@ -19,7 +19,8 @@ Users can configure and customize which alerts they receive from within the app.
 # Installation
 To install Rust Alerts to your Oxide server, take the following steps:
 - Turn off your server.
-- Copy all .dlls from Dependencies and put them in your server's RustDedicated_Data/Managed folder.
+- Copy all .dlls from the Dependencies folder and put them in your server's RustDedicated_Data/Managed folder.
+-- (The .dll files should be copied directly to the folder. Do not copy the "Dependencies" folder itself).
 - Copy the RustAlerts.cs file and put it in your server's oxide/plugins folder.
 - Restart your server.
 
