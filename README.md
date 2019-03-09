@@ -38,7 +38,7 @@ If you plan on using this for your server, adding |RustAlerts| somewhere in your
   "alertDispatchDelaySecondsPriority": 0,
   "reminderRate": 7200,
   "sendUnregisteredReminders": true
-}```
+}
 
 # Permissions:
 rustalerts.priority -- Users 
