@@ -56,6 +56,15 @@ If you plan on using this for your server, adding |RustAlerts| somewhere in your
 **rustalerts.sendalerts** -- Users with this permission will be able to send custom alerts via the app to all users in the server.
 
 # Chat Commands
+**/rustalerts setup** -- Users can type this to learn about how to setup Rust Alerts.
+**/rustalerts link** -- Users can type this to obtain an auth key -- this is how they link their Steam account to the app.
+**/rustalerts test** -- Users can use this command to send a test alert to their mobile device.
+**/rustalerts sync** -- Updates the server's database cache. This should be used if you make changes to permissions regarding Rust Alerts, but also happens automatically every so often. (Admin only command).
+
+# Support
+If you need help with Rust Alerts or encounter an issue, feel free to shoot an email to: **calebchalmers@gmail.com**.
+
+Optionally, you can also join the associated Discord, [Atlas Incawporated](discord.gg/battlesquares), to give feedback or resolve issues.
 
 # License
 You are free to download, use, and modify Rust Alerts for your own use. Reuploading or distributing copies of the plugin require express consent.
