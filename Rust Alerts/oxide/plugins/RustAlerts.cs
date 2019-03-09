@@ -1,6 +1,9 @@
 ﻿using ConVar;
 using Facepunch;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using Oxide.Core;
+using Oxide.Core.Libraries;
 using Oxide.Core.Plugins;
 using Rust;
 using System;
@@ -11,39 +14,43 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-	[Info( "RustAlerts", "Atlas Incawporated", 1.1 )]
+	[Info( "RustAlerts", "Atlas Incawporated", 1.4 )]
 	[Description( "A plugin for RustAlerts to allow offline Rust alerts and push notifications." )]
 	public class RustAlerts : RustPlugin
 	{
-		public enum AlertType { BaseDecay, RaidAlert, CupboardDestroyed, Custom, TestAlert, AutoTurretNoAmmo, AutoTurretDestroy, TrapTriggered, PlayerKilledSleeping, ServerWipe, Service, AdminRequested, Unassigned1, Unassigned2, Unassigned3 }
-
-
 		[PluginReference]
 		Plugin RustAlertsPlugin;
-		const int SERVER_REPORTRATE = 5;//How often the plugin reports back to the server (In Seconds). Lower report rates means more responsive alerts, but potentially reduced performance.
-		const int SERVER_SYNCRATE = 1800;//How often the plugin syncs its cache to the server (In Seconds). This is a slow operation, but doesnt need to be done very often. Default 30 mins / 1800 seconds.
 
-		const int REMINDER_RATE = 7200;//How often to remind people that aren't signed up with RustAlerts to sign up.
+		[PluginReference]
+		Plugin Clans;
+		bool clansEnabled = false;
 
+		public enum AlertType { BaseDecay, RaidAlert, CupboardDestroyed, Custom, TestAlert, AutoTurretNoAmmo, AutoTurretDestroy, TrapTriggered, PlayerKilledSleeping, ServerWipe, Service, AdminRequested, ClanBaseAttack, ClanBaseDecay, Unassigned3 }
+
+		class RustAlertsConfig
+		{
+			public int alertDispatchDelaySeconds = 0;//Delay (In seconds) before a user will receive an alert once its dispatched.
+			public int alertDispatchDelaySecondsPriority = 0;//Delay (In seconds) before a high priority user (Typically a VIP) will receive an alert once its dispatched.
+			public bool sendUnregisteredReminders = true;//Whether or not we will send reminders to those not registered to RustAlerts.
+			public int reminderRate = 7200;//How often to remind people that aren't signed up with RustAlerts to sign up.
+			public bool adminsCanSendAlerts = true;//Whether or not admins can automatically send alerts.
+			
+		}
+
+		//const int REMINDER_RATE = 
+		const string rustAlertsPriorityPermission = "rustalerts.priority";
+		const string rustAlertsAdminPermission = "rustalerts.sendalerts";
 		//References to the timers, if needed.
-		static Timer serverTimer;
-		static Timer serverDBSyncTimer;
 		static Timer reminderTimer;
-
+		static RustAlertsConfig config;
 		static RustAlerts instance;
 
 		List<BasePlayer> unregisteredPlayers = new List<BasePlayer>();
 
-		public static void SendServerMessage( string message, params object[] args ) {
 
-			instance.PrintToChat( message, args );
-		}
-
-		public static void SendMessageToPlayer( BasePlayer player, string message, params object[] args ) {
-			instance.PrintToChat( player, message, args );
-			
-		}
 		const string setupString = "To setup RustAlerts:\n" + "- Download the RustAlerts app at rustalerts.com" + "\n" + "- After opening the app, link your Steam account by following the instructions on-screen." + "\nWhen prompted, enter the following code: *AUTH_KEY*";
+
+		#region ChatCommands
 		/// <summary>
 		/// Handles all /rustalerts commands.
 		/// </summary>
@@ -72,20 +79,25 @@ namespace Oxide.Plugins
 					}
 					break;
 
+				case ("CLANTEST"):
+					DispatchAlert( player.userID, AlertType.ClanBaseAttack, 0 );
+					DispatchAlert( player.userID, AlertType.ClanBaseDecay, 0 );
+					break;
+
 				case ("TEST"):
 					if ( unregisteredPlayers.Contains( player ) ) {
 						Action trueCallback = () => {
-							Debug.Log( "Got test alert command (On familiar user).. preparing to send test alert." );
+							//Debug.Log( "Got test alert command (On familiar user).. preparing to send test alert." );
 							//RustAlertsPlugin.Call( "RegisterPlayer", player.userID );
 							if ( unregisteredPlayers.Contains( player ) ) {
 								unregisteredPlayers.Remove( player );
 							}
 
 							SendMessageToPlayer( player, "Sending a test alert now!" );
-							RustAlertsPlugin.Call( "SendAlert", player.userID, AlertType.TestAlert );
+							DispatchAlert( player.userID, AlertType.TestAlert, 0 );
 						};
 						Action falseCallback = () => {
-							Debug.Log( "Unfamiliar player requested test:" + player.userID );
+							//Debug.Log( "Unfamiliar player requested test:" + player.userID );
 							SendMessageToPlayer( player, TextWithColor( "Could not send a test alert because you don't have RustAlerts configured!", Color.red ) + TextWithColor( "\n" + "Type /rustalerts setup for instructions on how to configure Rust Alerts.", Color.white ) );
 							if ( !unregisteredPlayers.Contains( player ) ) {
 								unregisteredPlayers.Add( player );
@@ -96,7 +108,7 @@ namespace Oxide.Plugins
 						RustAlertsPlugin.Call( "IsPlayerFamiliar", player.userID, trueCallback, falseCallback );
 					} else {
 						SendMessageToPlayer( player, "Sending a test alert now!" );
-						RustAlertsPlugin.Call( "SendAlert", player.userID, AlertType.TestAlert );
+						DispatchAlert( player.userID, AlertType.TestAlert, 0 );
 					}
 
 
@@ -104,8 +116,8 @@ namespace Oxide.Plugins
 
 				case ("SYNC"):
 					if ( player.IsAdmin == false ) return;
-					SendMessageToPlayer( player, "Updating the Server's cache.. this could take a bit." );
-					RustAlertsPlugin.Call( "LoadPlayersFromDB" );
+					SendMessageToPlayer( player, "The database has been re-synced." );
+					RustAlertsSync();
 					break;
 
 				default:
@@ -115,11 +127,300 @@ namespace Oxide.Plugins
 
 
 		}
+		#endregion
+		#region ConsoleCommands
+		[ConsoleCommand( "rustalerts sync" )]
+		private void RustAlertsSync() {
+			Debug.Log( "Force-Syncing local database!" );
+			RustAlertsPlugin.Call( "LoadPlayersFromDB", JsonConvert.SerializeObject( permission.GetPermissionUsers( rustAlertsAdminPermission ) ) );
+		}
+		#endregion
+		#region RustHooks
+		void OnPlayerInit( BasePlayer player ) {
+			Action trueCallback = () => {
+				SendMessageToPlayer( player, TextWithColor( "Rust Alerts v" + this.Version, Color.cyan ) + "\nRust Alerts is configured and ready to go!\nNote: You can further customize Rust Alerts via the app. Happy Rusting!" );
+				if ( PlayerHasSendAlertPermission( player.userID ) ) {
+					SendMessageToPlayer( player, TextWithColor( "You're currently permitted to send alerts to the server via the app.", Color.green ) );
+				}
+			};
+			Action falseCallback = () => {
+				SendMessageToPlayer( player, TextWithColor( "Rust Alerts v" + this.Version, Color.cyan ) + "\nYou don't seem to have RustAlerts configured!\n\nType " + TextWithColor( "/rustalerts setup", Color.cyan ) + " to configure RustAlerts and get notifications on your phone even when you're offline." );
+				unregisteredPlayers.Add( player );
 
-		[ChatCommand( "steamid" )]
-		void PrintSteamID( BasePlayer player ) {
+			};
+			RustAlertsPlugin.Call( "IsPlayerFamiliar", player.userID, trueCallback, falseCallback );
+		}
 
-			SendMessageToPlayer( player, "Your Steam ID=" + player.userID );
+		void OnPlayerDisconnected( BasePlayer player, string reason ) {
+			Action trueCallback = () => { RustAlertsPlugin.Call( "RegisterPlayer", player.userID ); };
+			Action falseCallback = () => { };
+			RustAlertsPlugin.Call( "IsPlayerFamiliar", player.userID, trueCallback, falseCallback );
+
+		}
+
+		private void OnEntityTakeDamage( BaseCombatEntity entity, HitInfo hitInfo ) {
+			if ( hitInfo.damageTypes.Has( DamageType.Decay ) ) {
+				//Decay damage taken, notify owner.
+				BuildingPrivlidge bp = entity.GetBuildingPrivilege();
+				if ( bp != null ) {
+					DispatchAlert( bp.OwnerID, AlertType.BaseDecay, 0 );
+				}
+
+			}
+
+		}
+
+		void OnEntityDeath( BaseCombatEntity entity, HitInfo hitInfo ) {
+			if ( EntityIsTC( entity ) ) {
+				OnToolCupboardDestroyed( entity, hitInfo );
+				return;
+			}
+
+			if ( EntityIsAutoTurret( entity ) ) {
+				OnAutoTurretDestroyed( entity, hitInfo );
+				return;
+			}
+
+			if ( hitInfo == null || hitInfo.Initiator == null || hitInfo.Initiator.transform == null )
+				return;
+			if ( !IsRaidDamage( hitInfo.damageTypes ) )
+				return;
+
+			if ( !EntityIsUpgradedBuildingBlock( entity ) && !EntityIsWallOrDoor( entity ) ) {
+				return;
+			} else {
+				OnStructureDestroyed( entity, hitInfo.Initiator );
+			}
+
+
+			//StructureAttack( entity, hitInfo.Initiator, hitInfo?.WeaponPrefab?.ShortPrefabName, hitInfo.HitPositionWorld );
+		}
+
+		void OnToolCupboardDestroyed( BaseCombatEntity damagedStructure, HitInfo hitInfo ) {
+			ulong ownerID = damagedStructure.OwnerID;
+			ulong attacker = 0;
+			if ( hitInfo != null && hitInfo.InitiatorPlayer != null ) {
+				attacker = hitInfo.InitiatorPlayer.userID;
+			}
+			BasePlayer owner = Oxide.Game.Rust.RustCore.FindPlayerById( ownerID );
+			DispatchAlert( ownerID, AlertType.CupboardDestroyed, attacker );
+			//Debug.Log( "Detected TC destruction." );
+		}
+
+		void OnStructureDestroyed( BaseCombatEntity damagedStructure, BaseEntity attackerEntity ) {
+
+			ulong ownerID = damagedStructure.OwnerID;
+			if ( ownerID > 0 ) {
+				//Debug.Log( "Detected structure killed by raid damage, owner not null." );
+				BasePlayer owner = Oxide.Game.Rust.RustCore.FindPlayerById( ownerID );
+				BasePlayer attacker = attackerEntity.ToPlayer();
+				BuildingPrivlidge privs = damagedStructure.GetBuildingPrivilege();
+				if ( owner != null && attacker != null && privs != null ) {
+					//SendServerMessage( attacker.displayName + " destroyed a structure owned by: " + owner.displayName );
+					DispatchAlert( owner.userID, AlertType.RaidAlert, attacker.userID );
+				}
+			}
+		}
+
+		void OnItemUse( Item item, int amount ) {
+			var entity = item.parent?.entityOwner;
+			if ( entity != null ) {
+				if ( entity is AutoTurret ) {
+					var autoTurret = entity as AutoTurret;
+					if ( autoTurret != null ) {
+						if ( item.amount <= 1 ) {
+							OnAutoTurretAmmoDepleted( autoTurret );
+						}
+
+					}
+				}
+			}
+		}
+
+		void OnAutoTurretAmmoDepleted( AutoTurret turret ) {
+			DispatchAlert( turret.OwnerID, AlertType.AutoTurretNoAmmo, 0 );
+		}
+
+		void OnAutoTurretDestroyed( BaseCombatEntity turret, HitInfo hitInfo ) {
+			ulong attacker = 0;
+			if ( hitInfo != null && hitInfo.InitiatorPlayer != null ) {
+				attacker = hitInfo.InitiatorPlayer.userID;
+			}
+			DispatchAlert( turret.OwnerID, AlertType.AutoTurretDestroy, attacker );
+		}
+
+		void OnTrapTrigger( BaseTrap trap, GameObject go ) {
+
+			//Debug.Log( "**OnTrapTriggerprecalled." );
+			DelayedInvoke( () => { OnTrapTriggerLate( trap, go ); }, .25f );
+
+
+		}
+
+		//Called about .25 seconds after a trap has triggered. This is used to tell if the player dies from the trap or not.
+		void OnTrapTriggerLate( BaseTrap trap, GameObject go ) {
+			var victim = go.GetComponent<BasePlayer>();
+			if ( victim != null ) {
+				if ( victim.IsWounded() || victim.IsDead() || victim.IsSleeping() || victim.healthFraction == 0 ) {
+					DispatchAlert( trap.OwnerID, AlertType.TrapTriggered, victim.userID );
+				}
+			}
+		}
+
+		void OnPlayerDie( BasePlayer victim, HitInfo hitInfo ) {
+			ulong attacker = 0;
+			if ( hitInfo != null && hitInfo.InitiatorPlayer != null ) {
+				attacker = hitInfo.InitiatorPlayer.userID;
+				//Debug.Log( "On player death (Sleeping) got attacker =" + attacker );
+			}
+			if ( victim.IsSleeping() ) {
+				//Debug.Log( "On player death (Sleeping) called for victim =" + victim.userID );
+				DispatchAlert( victim.userID, AlertType.PlayerKilledSleeping, attacker );
+			}
+		}
+		#endregion
+
+		#region RustAlertsMethods
+
+		/// <summary>
+		/// Lets anyone who is not registered to RustAlerts know about the plugin.
+		/// </summary>
+		private void SendRustAlertsReminder() {
+			if ( config != null && config.sendUnregisteredReminders == false ) return;
+			foreach ( var player in unregisteredPlayers ) {
+				SendMessageToPlayer( player, "Register for RustAlerts to receive mobile notifications when your base comes under threat!\nTo begin, type " + TextWithColor( "/rustalerts setup", Color.cyan ) + "" );
+			}
+		}
+
+		public bool PlayerHasSendAlertPermission( ulong playerID ) {
+			bool result = permission.UserHasPermission( playerID + "", rustAlertsAdminPermission );
+			return result;
+		}
+
+		private Action GetDispatchRequest( ulong playerID, object alertType, ulong triggeringPlayerID, string alertText = "" ) {
+			Action dispatchAlert = () => {
+				RustAlertsPlugin.Call( "SendAlert", playerID, alertType, triggeringPlayerID, alertText );
+			};
+			return dispatchAlert;
+		}
+
+		private void DispatchAlert( ulong playerID, object alertType, ulong triggeringPlayerID, string alertText = "" ) {
+			
+			float delay = 0;
+			if ( config != null && permission.UserHasPermission( playerID + "", rustAlertsPriorityPermission ) ) {
+				delay = config.alertDispatchDelaySecondsPriority;
+			} else if ( config != null ) {
+				delay = config.alertDispatchDelaySeconds;
+			}
+
+			Action dispatchAlert = GetDispatchRequest( playerID, alertType, triggeringPlayerID, alertText = "" );
+			DelayedInvoke( dispatchAlert, delay );
+
+
+			//Handle clan forwarding.
+			AlertType aType = (AlertType) (alertType);
+			if ( clansEnabled && Clans != null && (aType == AlertType.BaseDecay || aType == AlertType.CupboardDestroyed || aType == AlertType.RaidAlert) ) {
+				string clan = Clans?.Call<string>( "GetClanTag", playerID );
+				if ( clan != null ) {
+					//The user is in a clan. Forward this alert to clanmates.
+					JObject clanObject = Clans?.Call<JObject>( "GetClan", clan );
+					if ( clanObject != null ) {
+						JArray memberList = (JArray) clanObject["members"];
+						foreach ( var member in memberList ) {
+							ulong clanmate = Convert.ToUInt64( member );
+							if ( clanmate != playerID ) {
+								if ( aType == AlertType.CupboardDestroyed || aType == AlertType.RaidAlert ) {
+									DispatchAlert( clanmate, AlertType.ClanBaseAttack, triggeringPlayerID );
+								} else if ( aType == AlertType.BaseDecay ) {
+									DispatchAlert( clanmate, AlertType.ClanBaseDecay, triggeringPlayerID );
+								}
+
+							}
+						}
+					}
+				}
+			}
+		}
+
+		public void DelayedInvoke( Action callback, float delay ) {
+			RustAlertsPlugin.Call( "DelayedCallback", callback, delay );
+		}
+		#endregion
+
+		#region Initialization
+		void Init() {
+			if ( instance == null ) {
+				instance = this;
+			}
+			config = Config.ReadObject<RustAlertsConfig>();
+			if ( config == null ) {
+				Debug.LogWarning( "Could not find config file for RustAlerts!" );
+				config = new RustAlertsConfig();
+				Config.WriteObject( config, true );
+			}
+			permission.RegisterPermission( rustAlertsPriorityPermission, this );
+			permission.RegisterPermission( rustAlertsAdminPermission, this );
+
+		}
+
+
+		protected override void LoadDefaultConfig() {
+			Config.WriteObject( GetDefaultConfig(), true );
+		}
+
+		private RustAlertsConfig GetDefaultConfig() {
+			return new RustAlertsConfig();
+		}
+
+		void OnServerInitialized() {
+			if ( instance == null ) {
+				instance = this;
+			}
+			clansEnabled = Clans != null;
+			if ( clansEnabled ) {
+				Debug.Log( "(RustAlerts) -- Clan plugin detected, enabling clan-related alert features." );
+			} else {
+				Debug.LogWarning( "(RustAlerts) -- Clans plugin not detected. Will not be able to send clan-related alerts." );
+			}
+			string[] permissionUsers = permission.GetPermissionUsers( rustAlertsAdminPermission );
+			RustAlertsPlugin.Call( "LoadPlayersFromDB", JsonConvert.SerializeObject( permissionUsers ) );
+			StartServerClock();
+		}
+
+		void StartServerClock() {
+
+			if ( config.sendUnregisteredReminders ) {
+				reminderTimer = timer.Every( config.reminderRate, () => {
+					SendRustAlertsReminder();
+				} );
+			}
+
+			//tcCheckTimer = timer.Every( config.toolCupboardCheckIntervalSeconds );
+
+			RustAlertsPlugin.Call( "RegisterTimer", timer );
+
+		}
+		#endregion
+
+		#region UtilityMethods
+
+		public static void SendServerMessage( string message, params object[] args ) {
+
+			instance.PrintToChat( message, args );
+		}
+
+		public static void SendMessageToPlayer( BasePlayer player, string message, params object[] args ) {
+			instance.PrintToChat( player, message, args );
+
+		}
+
+		public string TextWithColor( string text, Color c ) {
+			return "<color=#" + ColorToHex( c ) + ">" + text + "</color>";
+		}
+
+		public string ColorToHex( Color32 color ) {
+			string hex = color.r.ToString( "X2" ) + color.g.ToString( "X2" ) + color.b.ToString( "X2" );
+			return hex;
 		}
 
 		bool EntityIsWallOrDoor( BaseCombatEntity entity ) {
@@ -171,168 +472,7 @@ namespace Oxide.Plugins
 			return false;
 		}
 
-		float GetHealthPercent( BaseEntity entity, float damage = 0f ) {
-			return (entity.Health() - damage) * 100f / entity.MaxHealth();
-		}
-		#region RustHooks
-		void OnEntityDeath( BaseCombatEntity entity, HitInfo hitInfo ) {
-			Debug.Log( "Detected death of entity: " + entity.ShortPrefabName );
-			if ( EntityIsTC( entity ) ) {
-				OnToolCupboardDestroyed( entity );
-				return;
-			}
-
-			if ( EntityIsAutoTurret( entity ) ) {
-				OnAutoTurretDestroyed( entity );
-				return;
-			}
-
-			if ( hitInfo == null || hitInfo.Initiator == null || hitInfo.Initiator.transform == null )
-				return;
-			if ( !IsRaidDamage( hitInfo.damageTypes ) )
-				return;
-
-			/*if ( GetHealthPercent( entity, hitInfo.damageTypes.Total() ) > DAMAGE_THRESHOLD ) {
-				return;
-			}*/
-
-
-
-			if ( !EntityIsUpgradedBuildingBlock( entity ) && !EntityIsWallOrDoor( entity ) ) {
-				return;
-			} else {
-				OnStructureDestroyed( entity, hitInfo.Initiator );
-			}
-
-
-			//StructureAttack( entity, hitInfo.Initiator, hitInfo?.WeaponPrefab?.ShortPrefabName, hitInfo.HitPositionWorld );
-		}
-
-		void OnToolCupboardDestroyed( BaseCombatEntity damagedStructure ) {
-			ulong ownerID = damagedStructure.OwnerID;
-			BasePlayer owner = Oxide.Game.Rust.RustCore.FindPlayerById( ownerID );
-			RustAlertsPlugin.Call( "SendAlert", owner.userID, AlertType.CupboardDestroyed );
-			Debug.Log( "Detected TC destruction." );
-		}
-
-		void OnStructureDestroyed( BaseCombatEntity damagedStructure, BaseEntity attackerEntity ) {
-
-			ulong ownerID = damagedStructure.OwnerID;
-			if ( ownerID > 0 ) {
-				//Debug.Log( "Detected structure killed by raid damage, owner not null." );
-				BasePlayer owner = Oxide.Game.Rust.RustCore.FindPlayerById( ownerID );
-				BasePlayer attacker = attackerEntity.ToPlayer();
-				if ( owner != null && attacker != null ) {
-					//SendServerMessage( attacker.displayName + " destroyed a structure owned by: " + owner.displayName );
-					RustAlertsPlugin.Call( "SendAlert", owner.userID, AlertType.RaidAlert );
-				} else if ( attacker == null ) {
-					//Debug.Log( "Couldn't get attacker info from structure destroyed." );
-				}
-			}
-		}
-
-		void OnItemUse( Item item, int amount ) {
-			var entity = item.parent?.entityOwner;
-			if ( entity != null ) {
-				if ( entity is AutoTurret ) {
-					var autoTurret = entity as AutoTurret;
-					if ( autoTurret != null ) {
-						if ( item.amount <= 0 ) {
-							OnAutoTurretAmmoDepleted( autoTurret );
-						}
-
-					}
-				}
-			}
-		}
-
-		void OnAutoTurretAmmoDepleted( AutoTurret turret ) {
-			RustAlertsPlugin.Call( "SendAlert", turret.OwnerID, AlertType.AutoTurretNoAmmo );
-		}
-
-		void OnAutoTurretDestroyed( BaseCombatEntity turret ) {
-			RustAlertsPlugin.Call( "SendAlert", turret.OwnerID, AlertType.AutoTurretDestroy );
-		}
-
-		void OnTrapTrigger( BaseTrap trap, GameObject go ) {
-			BasePlayer victim = go.GetComponent<BasePlayer>();
-			Debug.Log( "OnTrapTrigger called with non-null victim." );
-			if ( victim != null ) {
-				//Someone triggered our trap.
-				if ( victim.IsWounded() || victim.IsDead() ) {
-					RustAlertsPlugin.Call( "SendAlert", trap.OwnerID, AlertType.TrapTriggered );
-				}
-			}
-
-		}
-
-		void OnPlayerDie( BasePlayer victim, HitInfo info ) {
-			if ( victim.IsSleeping() ) {
-				RustAlertsPlugin.Call( "SendAlert", victim.userID, AlertType.PlayerKilledSleeping );
-			}
-		}
 		#endregion
-
-		void StartServerClock() {
-			serverTimer = timer.Every( SERVER_REPORTRATE, () => {
-				RustAlertsPlugin.Call( "ReportServerTime", DateTimeOffset.Now.ToUnixTimeSeconds() );
-			} );
-
-			serverDBSyncTimer = timer.Every( SERVER_SYNCRATE, () => {
-				RustAlertsPlugin.Call( "LoadPlayersFromDB" );
-			} );
-
-			reminderTimer = timer.Every( REMINDER_RATE, () => {
-				SendRustAlertsReminder();
-			} );
-		}
-
-		/// <summary>
-		/// Lets anyone who is not registered to RustAlerts know about the plugin.
-		/// </summary>
-		private void SendRustAlertsReminder() {
-			foreach ( var player in unregisteredPlayers ) {
-				SendMessageToPlayer( player, "Register for RustAlerts to receive mobile notifications when your base comes under threat!\nTo begin, type " + TextWithColor( "/rustalerts setup", Color.cyan ) + "" );
-			}
-		}
-
-		void OnPlayerInit( BasePlayer player ) {
-			//ServerHandler.RegisterPlayer( player.userID ); 
-			Action trueCallback = () => {
-				RustAlertsPlugin.Call( "RegisterPlayer", player.userID );
-				SendMessageToPlayer( player, TextWithColor( "Rust Alerts v" + this.Version, Color.cyan ) + "\nRust Alerts is configured and ready to go!\nNote: You can further customize Rust Alerts via the app. Happy Rusting!" );
-			};
-			Action falseCallback = () => { SendMessageToPlayer( player, TextWithColor( "Rust Alerts v" + this.Version, Color.cyan ) + "\nYou don't seem to have RustAlerts configured!\n\nType " + TextWithColor( "/rustalerts setup", Color.cyan ) + " to configure RustAlerts and get notifications on your phone even when you're offline." ); unregisteredPlayers.Add( player ); };
-			RustAlertsPlugin.Call( "IsPlayerFamiliar", player.userID, trueCallback, falseCallback );
-		}
-
-		void OnPlayerDisconnected( BasePlayer player, string reason ) {
-			Action trueCallback = () => { RustAlertsPlugin.Call( "RegisterPlayer", player.userID ); };
-			Action falseCallback = () => { };
-			RustAlertsPlugin.Call( "IsPlayerFamiliar", player.userID, trueCallback, falseCallback );
-		}
-
-		void Loaded() {
-			Debug.Log( "Loaded extern. Rust plugin!" );
-		}
-
-		void OnServerInitialized() {
-			if ( instance == null ) {
-				instance = this;
-			}
-			//SendServerMessage( "**** RustAlerts loaded successfully! ****");
-			RustAlertsPlugin.Call( "LoadPlayersFromDB" );
-			StartServerClock();
-		}
-
-		public string TextWithColor( string text, Color c ) {
-			return "<color=#" + ColorToHex( c ) + ">" + text + "</color>";
-		}
-
-		public string ColorToHex( Color32 color ) {
-			string hex = color.r.ToString( "X2" ) + color.g.ToString( "X2" ) + color.b.ToString( "X2" );
-			return hex;
-		}
 
 	}
 }
