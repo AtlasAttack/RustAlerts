@@ -28,8 +28,10 @@ To install Rust Alerts to your Oxide server, take the following steps:
 ### Updating Rust Alerts:
 If you have a previous version of Rust Alerts installed, you will only need to copy the RustAlerts.cs file into oxide/plugins, unless otherwise noted.
 
+
 ### Recommendations:
 If you plan on using this for your server, adding |RustAlerts| somewhere in your server's title or description will help app users find your server.
+
 
 # Configuration:
 ```
@@ -55,6 +57,7 @@ If you plan on using this for your server, adding |RustAlerts| somewhere in your
 
 **rustalerts.sendalerts** -- Users with this permission will be able to send custom alerts via the app to all users in the server.
 
+
 # Chat Commands
 -**/rustalerts setup** -- Users can type this to learn about how to setup Rust Alerts.
 
@@ -64,13 +67,16 @@ If you plan on using this for your server, adding |RustAlerts| somewhere in your
 
 -**/rustalerts sync** -- Updates the server's database cache. This should be used if you make changes to permissions regarding Rust Alerts, but also happens automatically every so often. (Admin only command).
 
+
 ### Integrations
 [Clans by k1lly0u](https://umod.org/plugins/clans) (Optional) -- If this plugin is installed, clanmates that share a base will all receive alerts if that base is raided, begins decaying, or has its tool cupboard destroyed.
+
 
 # Support
 If you need help with Rust Alerts or encounter an issue, feel free to shoot an email to: **calebchalmers@gmail.com**.
 
 Optionally, you can also join the associated Discord, [Atlas Incawporated](https://discordapp.com/invite/battlesquares), to give feedback or resolve issues.
+
 
 # License
 You are free to download, use, and modify Rust Alerts for your own use. Reuploading or distributing copies of the plugin require express consent.
