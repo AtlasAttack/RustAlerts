@@ -64,7 +64,7 @@ If you plan on using this for your server, adding |RustAlerts| somewhere in your
 # Support
 If you need help with Rust Alerts or encounter an issue, feel free to shoot an email to: **calebchalmers@gmail.com**.
 
-Optionally, you can also join the associated Discord, [Atlas Incawporated](discord.gg/battlesquares), to give feedback or resolve issues.
+Optionally, you can also join the associated Discord, [Atlas Incawporated](https://discordapp.com/invite/battlesquares), to give feedback or resolve issues.
 
 # License
 You are free to download, use, and modify Rust Alerts for your own use. Reuploading or distributing copies of the plugin require express consent.
