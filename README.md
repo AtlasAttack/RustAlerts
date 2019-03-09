@@ -36,13 +36,26 @@ If you plan on using this for your server, adding |RustAlerts| somewhere in your
   "adminsCanSendAlerts": true,
   "alertDispatchDelaySeconds": 0,
   "alertDispatchDelaySecondsPriority": 0,
-  "reminderRate": 7200,
-  "sendUnregisteredReminders": true
+  "sendUnregisteredReminders": true,
+  "reminderRate": 7200
 ```
 
+**adminsCanSendAlerts** (true/false) -- Whether or not all server admins have permission to send alerts to all users in the server. If set to false, all users, even admins, need the rustalerts.sendalerts permission to send alerts via the app.
+
+**alertDispatchDelaySeconds** -- How long (by default) a user will need to wait before an alert is dispatched. If set to 0, the server will send out alerts as soon as they happen.
+
+**alertDispatchDelaySecondsPriority** -- How long a priority user will have to wait before an alert is dispatched. Priority users are determined by users with the permission `rustalerts.priority`. This delay will bypass the default delay.
+
+**sendUnregisteredReminders** (true/false) -- Whether or not the server will send messages to unregistered players reminding them about RustAlerts periodically.
+
+**reminderRate** -- How often (in seconds) the server will send out reminders for people who haven't registered with the RustAlerts app. If set to anything less than 360, reminders will not be sent.
 
 # Permissions:
-rustalerts.priority -- Users 
+**rustalerts.priority** -- Users with this permission bypass the delay set in **alertDispatchDelaySeconds** and instead use the delay set by **alertDispatchDelaySecondsPriority**. 
+
+**rustalerts.sendalerts** -- Users with this permission will be able to send custom alerts via the app to all users in the server.
+
+# Chat Commands
 
 # License
 You are free to download, use, and modify Rust Alerts for your own use. Reuploading or distributing copies of the plugin require express consent.
