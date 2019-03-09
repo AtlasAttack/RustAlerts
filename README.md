@@ -32,13 +32,14 @@ If you have a previous version of Rust Alerts installed, you will only need to c
 If you plan on using this for your server, adding |RustAlerts| somewhere in your server's title or description will help app users find your server.
 
 # Configuration:
-```{
+```
   "adminsCanSendAlerts": true,
   "alertDispatchDelaySeconds": 0,
   "alertDispatchDelaySecondsPriority": 0,
   "reminderRate": 7200,
   "sendUnregisteredReminders": true
-}
+```
+
 
 # Permissions:
 rustalerts.priority -- Users 
