@@ -13,7 +13,7 @@ Once Rust Alerts is installed on a server, users will be able to link their acco
 - An auto turret that the player owns runs out of ammo
 - A trap set by the player kills another player
 
-Users can configure these alerts from within the app. 
+Users can configure and customize which alerts they receive from within the app. 
 
 
 # Installation
@@ -31,6 +31,6 @@ If you have a previous version of Rust Alerts installed, you will only need to c
 If you plan on using this for your server, adding |RustAlerts| somewhere in your server's title or description will help app users find your server.
 
 # License
-You are free to download, use, and modify Rust Alerts for personal use. Reuploading or distributing modified copies of the plugin require express consent.
+You are free to download, use, and modify Rust Alerts for your own use. Reuploading or distributing copies of the plugin require express consent.
 
 
