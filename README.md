@@ -1,5 +1,5 @@
 # Rust Alerts
-Rust Alerts is an Oxide Extension for Rust, enabling mobile notifications for users through an opt-in process.
+Rust Alerts is an Oxide Extension and plugin for Rust, enabling mobile notifications for users through an opt-in process.
 
 Once Rust Alerts is installed on a server, users will be able to link their account via the Rust Alerts app on the [Google Play Store](https://play.google.com/store/apps/details?id=com.atlas.rustalerts). After successfully linking the account, they will be able to receive push notifications when:
 
@@ -29,5 +29,8 @@ If you have a previous version of Rust Alerts installed, you will only need to c
 
 ### Recommendations:
 If you plan on using this for your server, adding |RustAlerts| somewhere in your server's title or description will help app users find your server.
+
+# License
+You are free to download, use, and modify Rust Alerts for personal use. Reuploading or distributing modified copies of the plugin require express consent.
 
 
