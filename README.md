@@ -19,11 +19,10 @@ Users can configure and customize which alerts they receive from within the app.
 # Installation
 To install Rust Alerts to your Oxide server, take the following steps:
 - Turn off your server.
-- Copy all .dlls from the **Dependencies** folder and put them in your server's **RustDedicated_Data/Managed** folder.
-  - (The .dll files should be copied directly to the folder. Do not copy the "Dependencies" folder itself).
+- Copy both .dlls from the **RustAlerts** folder and put them in your server's **RustDedicated_Data/Managed** folder.
 - Restart your server.
 
-Note: If you previously had a RustAlerts.cs file in your oxide/plugins folder, you will need to delete it. (It is no longer required).
+Note: If you previously had a RustAlerts.cs file in your oxide/plugins folder from an older version, you will need to delete it as it is no longer required.
 
 ### Recommendations:
 If you plan on using this for your server, adding |RustAlerts| somewhere in your server's title or description will help app users find your server.
