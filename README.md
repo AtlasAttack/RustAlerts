@@ -1,7 +1,7 @@
 # Rust Alerts
-Rust Alerts is an Oxide Extension and plugin for Rust, enabling mobile notifications for users through an opt-in process.
+Rust Alerts is an Oxide Extension and plugin for Rust, enabling mobile notifications for users when events happen in-game.
 
-Once Rust Alerts is installed on a server, users will be able to link their account via the Rust Alerts app on the [Google Play Store](https://play.google.com/store/apps/details?id=com.atlas.rustalerts). After successfully linking the account, they will be able to receive push notifications when:
+Once Rust Alerts is installed on a server, users will be able to link their account via the Rust Alerts app (Available on [Google Play](https://play.google.com/store/apps/details?id=com.atlas.rustalerts) and the [App Store](https://itunes.apple.com/us/app/rust-alerts/id1456273466?ls=1&mt=8). After successfully linking the account, they will be able to receive push notifications when:
 
 
 - Any building block (Above twig) that they own is destroyed.
